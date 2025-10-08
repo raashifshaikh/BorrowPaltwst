@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
-import { useUser } from '../contexts/UserContext';
+import { supabase } from '../lib/supabase'; // Adjust this path based on your actual structure
+import { useUser } from '../contexts/UserContext'; // Adjust this path
 import { toast } from 'sonner';
 
 // Icons
@@ -11,6 +11,11 @@ import {
   Gift, Users, Copy, Package, QrCode, Trophy, Crown, 
   TrendingUp, User 
 } from 'lucide-react';
+
+// If the above imports don't work, try this alternative import approach:
+// import Camera from 'lucide-react/dist/esm/icons/camera';
+// import Check from 'lucide-react/dist/esm/icons/check';
+// ... and so on for each icon
 
 // Types
 interface Profile {
@@ -65,7 +70,7 @@ interface Order {
   cod_verified: boolean;
 }
 
-// Components
+// Profile Header Component
 function ProfileHeader({ profile, isEditing, setIsEditing, onUpdate }: {
   profile: Profile;
   isEditing: boolean;
@@ -188,6 +193,7 @@ function ProfileHeader({ profile, isEditing, setIsEditing, onUpdate }: {
   );
 }
 
+// Stats Grid Component
 function StatsGrid({ 
   walletBalance, 
   pendingBalance, 
@@ -270,6 +276,7 @@ function StatsGrid({
   );
 }
 
+// Level Progress Component
 function LevelProgress({ userLevel }: { userLevel: UserLevel }) {
   const { level = 1, current_xp = 0, xp_to_next_level = 100 } = userLevel;
   const progress = Math.min((current_xp / xp_to_next_level) * 100, 100);
@@ -324,6 +331,7 @@ function LevelProgress({ userLevel }: { userLevel: UserLevel }) {
   );
 }
 
+// Badge Gallery Component
 function BadgeGallery({ userBadges }: { userBadges: UserBadge[] }) {
   const getTierColor = (tier: string) => {
     const colors = {
@@ -405,6 +413,7 @@ function BadgeGallery({ userBadges }: { userBadges: UserBadge[] }) {
   );
 }
 
+// Referral Section Component
 function ReferralSection({ userId, referralCount, successfulReferrals }: {
   userId?: string;
   referralCount: number;
@@ -501,6 +510,7 @@ function ReferralSection({ userId, referralCount, successfulReferrals }: {
   );
 }
 
+// Delivery Actions Component
 function DeliveryActions({ pendingOrders, userId }: {
   pendingOrders: Order[];
   userId?: string;
@@ -558,6 +568,7 @@ function DeliveryActions({ pendingOrders, userId }: {
   );
 }
 
+// Leaderboard Preview Component
 function LeaderboardPreview({ position, userId }: {
   position: number;
   userId?: string;
@@ -620,6 +631,7 @@ function LeaderboardPreview({ position, userId }: {
   );
 }
 
+// Reviews Section Component
 function ReviewsSection({ reviews }: { reviews: Review[] }) {
   const getAverageRating = () => {
     if (reviews.length === 0) return 0;
@@ -694,6 +706,7 @@ function ReviewsSection({ reviews }: { reviews: Review[] }) {
   );
 }
 
+// Profile Skeleton Component
 function ProfileSkeleton() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
@@ -756,6 +769,7 @@ export default function Profile() {
     queryFn: async () => {
       if (!user) throw new Error('No user logged in');
 
+      // If you don't have all these tables, you can comment out the ones you don't have
       const [
         profileRes,
         reviewsRes,
@@ -773,6 +787,7 @@ export default function Profile() {
             reviewer:profiles!reviewer_id(name, avatar_url)
           `)
           .eq('reviewed_user_id', user.id),
+        // If you don't have badges table, replace with empty array
         supabase
           .from('user_badges')
           .select(`
@@ -782,21 +797,25 @@ export default function Profile() {
           `)
           .eq('user_id', user.id)
           .order('awarded_at', { ascending: false }),
+        // If you don't have user_levels table, replace with default data
         supabase
           .from('user_levels')
           .select('*')
           .eq('user_id', user.id)
           .single(),
+        // If you don't have referrals table, replace with empty array
         supabase
           .from('referrals')
           .select('id, status, created_at')
           .eq('referrer_id', user.id),
+        // If you don't have orders table, replace with empty array
         supabase
           .from('orders')
           .select('*')
           .or(`lender_id.eq.${user.id},borrower_id.eq.${user.id}`)
           .eq('cod_verified', false)
           .in('status', ['in_transit', 'pending_pickup']),
+        // If you don't have the function, replace with default value
         supabase
           .rpc('get_user_leaderboard_position', { user_id: user.id }),
       ]);
@@ -882,4 +901,4 @@ export default function Profile() {
       </div>
     </div>
   );
-  }
+}
