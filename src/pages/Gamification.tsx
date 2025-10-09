@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { useGamification } from '@/hooks/useGamification';
 import { XPProgressBar } from '@/components/gamification/XPProgressBar';
 import { BadgeCollection } from '@/components/gamification/BadgeCollection';
@@ -14,7 +16,13 @@ import { StreakTracker } from '@/components/gamification/StreakTracker';
 import { Leaderboard } from '@/components/gamification/Leaderboard';
 import { AchievementTracker } from '@/components/gamification/AchievementTracker';
 import { WeeklyChallenges } from '@/components/gamification/WeeklyChallenges';
-import { Trophy, Award, Users, Zap, Crown, Sparkles, TrendingUp, Clock, Star, Shield, Rocket, TrendingUp as TrendingUpIcon, Calendar, Target } from 'lucide-react';
+import { 
+  Trophy, Award, Users, Zap, Crown, Sparkles, TrendingUp, 
+  Clock, Star, Shield, Rocket, Target, Medal, Gift, 
+  Calendar, BarChart3, TrendingUp as TrendingIcon, 
+  Heart, MessageCircle, Share2, Eye, DollarSign,
+  CheckCircle, Clock4, MapPin, Wrench, Home, Laptop
+} from 'lucide-react';
 
 const Gamification = () => {
   const { user, loading } = useAuth();
@@ -31,14 +39,18 @@ const Gamification = () => {
     streakDays
   } = useGamification();
 
+  const [activeCategory, setActiveCategory] = useState('all');
+
   if (loading || levelLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading your achievements...</p>
+      <DashboardLayout>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground text-lg">Loading your gaming universe...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -46,360 +58,454 @@ const Gamification = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  const earnedBadgeIds = userBadges.map((ub: any) => ub.badge_id);
-  const rareBadges = userBadges.filter((b: any) => 
-    ['epic', 'legendary'].includes(b.badges?.rarity)
-  );
+  const earnedBadgeIds = userBadges?.map((ub: any) => ub.badge_id) || [];
+  const earnedBadges = userBadges || [];
   
-  const recentBadges = userBadges
-    .sort((a: any, b: any) => new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime())
-    .slice(0, 3);
+  // Filter badges by category
+  const badgeCategories = [
+    { id: 'all', name: 'All Badges', icon: Trophy, count: allBadges?.length || 0 },
+    { id: 'viral', name: 'Viral', icon: TrendingIcon, count: allBadges?.filter(b => b.category === 'viral').length || 0 },
+    { id: 'status', name: 'Status', icon: Crown, count: allBadges?.filter(b => b.category === 'status').length || 0 },
+    { id: 'community', name: 'Community', icon: Users, count: allBadges?.filter(b => b.category === 'community').length || 0 },
+    { id: 'economic', name: 'Economic', icon: DollarSign, count: allBadges?.filter(b => b.category === 'economic').length || 0 },
+    { id: 'gamification', name: 'Gaming', icon: Zap, count: allBadges?.filter(b => b.category === 'gamification').length || 0 },
+  ];
 
-  const viralBadges = allBadges.filter((b: any) => b.category === 'viral');
-  const trendingBadges = allBadges.filter((b: any) => 
-    ['viral', 'status', 'economic'].includes(b.category)
-  );
+  const filteredBadges = activeCategory === 'all' 
+    ? allBadges 
+    : allBadges?.filter(badge => badge.category === activeCategory);
+
+  // Calculate stats
+  const totalXP = userLevel?.xp || 0;
+  const rareBadges = earnedBadges.filter(b => ['epic', 'legendary'].includes(b.badges?.rarity));
+  const recentBadges = [...earnedBadges].sort((a, b) => 
+    new Date(b.earned_at).getTime() - new Date(a.earned_at).getTime()
+  ).slice(0, 3);
+
+  // Mock leaderboard data
+  const leaderboardData = [
+    { id: '1', name: 'Alex Johnson', avatar_url: '', level: 15, xp: 12500, position: 1, change: '+2' },
+    { id: '2', name: 'Sarah Miller', avatar_url: '', level: 14, xp: 11800, position: 2, change: '-1' },
+    { id: '3', name: 'Mike Chen', avatar_url: '', level: 13, xp: 11200, position: 3, change: '+1' },
+    { id: '4', name: 'Emma Davis', avatar_url: '', level: 12, xp: 10500, position: 4, change: '0' },
+    { id: '5', name: 'James Wilson', avatar_url: '', level: 12, xp: 9800, position: 5, change: '+3' },
+    ...(user ? [{ 
+      id: user.id, 
+      name: user.name || 'You', 
+      level: userLevel?.level || 1, 
+      xp: userLevel?.xp || 0, 
+      position: 25,
+      change: '+5'
+    }] : [])
+  ];
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header with Stats */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Achievements & Rewards</h1>
-            <p className="text-muted-foreground">Level up, earn badges, and join the elite!</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 space-y-8">
+          {/* Hero Header */}
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              Achievement Universe
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Level up your lending journey. Earn badges, climb leaderboards, and unlock exclusive rewards!
+            </p>
           </div>
-          <div className="flex gap-4 text-sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{earnedBadgeIds.length}</div>
-              <div className="text-muted-foreground">Badges</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{userStats?.completed_orders || 0}</div>
-              <div className="text-muted-foreground">Transactions</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{userLevel?.level || 1}</div>
-              <div className="text-muted-foreground">Level</div>
-            </div>
-          </div>
-        </div>
 
-        {/* Level Progress */}
-        {userLevel && (
-          <Card className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
-            <XPProgressBar
-              level={userLevel.level}
-              xp={userLevel.xp}
-              title={userLevel.title}
-              progress={progressToNextLevel}
-              nextLevelXP={nextLevelXP}
-            />
-          </Card>
-        )}
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4 text-center">
-            <TrendingUp className="h-8 w-8 text-green-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">${userStats?.total_earnings || 0}</div>
-            <div className="text-sm text-muted-foreground">Total Earned</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <Star className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{userStats?.avg_rating || 0}</div>
-            <div className="text-sm text-muted-foreground">Avg Rating</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <Shield className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{userStats?.trust_score || 50}</div>
-            <div className="text-sm text-muted-foreground">Trust Score</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <Zap className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{streakDays || 0}</div>
-            <div className="text-sm text-muted-foreground">Day Streak</div>
-          </Card>
-        </div>
-
-        {/* Trending Now Section */}
-        <Card className="border-2 border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-600">
-              <TrendingUpIcon className="h-5 w-5" />
-              Trending This Week
-            </CardTitle>
-            <CardDescription>
-              Everyone's chasing these badges right now!
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {trendingBadges.slice(0, 3).map((badge) => (
-                <div key={badge.id} className="flex items-center gap-3 p-4 bg-white rounded-lg border">
-                  <div className="text-2xl">{badge.icon}</div>
-                  <div className="flex-1">
-                    <div className="font-semibold">{badge.name}</div>
-                    <div className="text-xs text-muted-foreground">{badge.description}</div>
+          {/* Main Stats Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Level Progress */}
+            <Card className="lg:col-span-2 bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+              <CardContent className="p-6">
+                {userLevel && (
+                  <XPProgressBar
+                    level={userLevel.level}
+                    xp={userLevel.xp}
+                    title={userLevel.title}
+                    progress={progressToNextLevel}
+                    nextLevelXP={nextLevelXP}
+                  />
+                )}
+                
+                <div className="grid grid-cols-4 gap-4 mt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">{earnedBadges.length}</div>
+                    <div className="text-sm text-muted-foreground">Badges</div>
                   </div>
-                  <Badge variant={
-                    badge.rarity === 'legendary' ? 'default' :
-                    badge.rarity === 'epic' ? 'secondary' : 'outline'
-                  }>
-                    {badge.rarity}
-                  </Badge>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{userStats?.completed_orders || 0}</div>
+                    <div className="text-sm text-muted-foreground">Transactions</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{totalXP.toLocaleString()}</div>
+                    <div className="text-sm text-muted-foreground">Total XP</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{leaderboardData.find(u => u.id === user.id)?.position || 'N/A'}</div>
+                    <div className="text-sm text-muted-foreground">Rank</div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Tabs defaultValue="badges" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
-            <TabsTrigger value="badges" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              Badge Collection
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Achievements
-            </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-              <Crown className="h-4 w-4" />
-              Leaderboard
-            </TabsTrigger>
-            <TabsTrigger value="challenges" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Challenges
-            </TabsTrigger>
-            <TabsTrigger value="referrals" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Referrals
-            </TabsTrigger>
-          </TabsList>
+            {/* Streak Tracker */}
+            <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+              <CardContent className="p-6">
+                <StreakTracker 
+                  currentStreak={streakDays || 0}
+                  bestStreak={userStats?.best_streak || streakDays || 0}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Badge Collection Tab */}
-          <TabsContent value="badges" className="space-y-6">
-            {/* Recently Earned Badges */}
-            {recentBadges.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-yellow-500" />
-                    Recently Earned
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+          {/* Quick Actions & Recent Achievements */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Recent Badges */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-yellow-500" />
+                  Recently Unlocked
+                </CardTitle>
+                <CardDescription>
+                  Your latest achievements and badges
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentBadges.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {recentBadges.map((badge: any) => (
-                      <div key={badge.id} className="flex items-center gap-3 p-4 border rounded-lg bg-gradient-to-r from-green-50 to-emerald-50">
+                    {recentBadges.map((badge) => (
+                      <div key={badge.id} className="flex items-center gap-4 p-4 border rounded-lg bg-gradient-to-r from-green-50 to-emerald-50">
                         <div className="text-3xl">{badge.badges?.icon}</div>
                         <div className="flex-1">
-                          <div className="font-semibold">{badge.badges?.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Earned {new Date(badge.earned_at).toLocaleDateString()}
+                          <div className="font-semibold text-gray-900">{badge.badges?.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(badge.earned_at).toLocaleDateString()}
                           </div>
+                          <Badge variant="secondary" className="mt-1">
+                            +{badge.badges?.xp_reward} XP
+                          </Badge>
                         </div>
-                        <Badge variant="default" className="bg-green-100 text-green-800">
-                          +{badge.badges?.xp_reward} XP
-                        </Badge>
                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Trophy className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No badges earned yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Complete your first transaction to earn badges!
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-blue-500" />
+                  Performance
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Trust Score</span>
+                    <span className="font-semibold">{userStats?.trust_score || 50}/100</span>
+                  </div>
+                  <Progress value={userStats?.trust_score || 50} className="h-2" />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Response Rate</span>
+                    <span className="font-semibold">92%</span>
+                  </div>
+                  <Progress value={92} className="h-2" />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Completion Rate</span>
+                    <span className="font-semibold">98%</span>
+                  </div>
+                  <Progress value={98} className="h-2" />
+                </div>
+
+                <Separator />
+
+                <div className="text-center">
+                  <Button className="w-full" variant="outline">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share Profile
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="badges" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-12">
+              <TabsTrigger value="badges" className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" />
+                Badge Collection
+              </TabsTrigger>
+              <TabsTrigger value="achievements" className="flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Achievements
+              </TabsTrigger>
+              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                <Crown className="h-4 w-4" />
+                Leaderboard
+              </TabsTrigger>
+              <TabsTrigger value="challenges" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Challenges
+              </TabsTrigger>
+              <TabsTrigger value="referrals" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Referrals
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Badges Tab */}
+            <TabsContent value="badges" className="space-y-6">
+              {/* Category Filter */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {badgeCategories.map((category) => (
+                      <Button
+                        key={category.id}
+                        variant={activeCategory === category.id ? "default" : "outline"}
+                        onClick={() => setActiveCategory(category.id)}
+                        className="flex items-center gap-2"
+                      >
+                        <category.icon className="h-4 w-4" />
+                        {category.name}
+                        <Badge variant="secondary" className="ml-1">
+                          {category.count}
+                        </Badge>
+                      </Button>
                     ))}
                   </div>
                 </CardContent>
               </Card>
-            )}
 
-            {/* Rare Badges Showcase */}
-            {rareBadges.length > 0 && (
+              {/* Badge Collection */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="h-5 w-5 text-purple-500" />
-                    Your Rare Collection
-                  </CardTitle>
+                  <CardTitle>Badge Collection</CardTitle>
                   <CardDescription>
-                    Show off your exclusive badges
+                    You've earned {earnedBadgeIds.length} of {allBadges?.length || 0} badges
+                    {rareBadges.length > 0 && ` • ${rareBadges.length} rare badges`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {rareBadges.map((badge: any) => (
-                      <div key={badge.id} className="text-center group">
-                        <div className="relative inline-block">
-                          <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-200">
-                            {badge.badges?.icon}
-                          </div>
-                          {badge.badges?.rarity === 'legendary' && (
-                            <div className="absolute -top-1 -right-1">
-                              <Sparkles className="h-4 w-4 text-yellow-500" />
+                  <BadgeCollection 
+                    badges={filteredBadges || []} 
+                    earnedBadgeIds={earnedBadgeIds}
+                    showFilters={false}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Achievements Tab */}
+            <TabsContent value="achievements" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5 text-blue-500" />
+                      Achievement Progress
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <AchievementTracker 
+                      userBadges={userBadges}
+                      userStats={userStats}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Medal className="h-5 w-5 text-purple-500" />
+                      Rare Badges
+                    </CardTitle>
+                    <CardDescription>
+                      Your most exclusive achievements
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {rareBadges.length > 0 ? (
+                      <div className="space-y-4">
+                        {rareBadges.map((badge) => (
+                          <div key={badge.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                            <div className="text-2xl">{badge.badges?.icon}</div>
+                            <div className="flex-1">
+                              <div className="font-semibold">{badge.badges?.name}</div>
+                              <div className="text-sm text-muted-foreground">{badge.badges?.description}</div>
                             </div>
-                          )}
-                        </div>
-                        <div className="text-xs font-medium truncate">{badge.badges?.name}</div>
-                        <Badge variant="outline" className="text-xs mt-1">
-                          {badge.badges?.rarity}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Full Badge Collection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Complete Badge Collection</CardTitle>
-                <CardDescription>
-                  You've earned {earnedBadgeIds.length} of {allBadges.length} badges
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <BadgeCollection 
-                  badges={allBadges} 
-                  earnedBadgeIds={earnedBadgeIds}
-                  showFilters={true}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Achievements Tab */}
-          <TabsContent value="achievements" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Achievement Journey</CardTitle>
-                <CardDescription>
-                  Track your progress across different categories
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AchievementTracker 
-                  userBadges={userBadges}
-                  userStats={userStats}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Progress Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Rocket className="h-5 w-5 text-blue-500" />
-                    Quick Wins
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {viralBadges.slice(0, 3).map((badge) => {
-                    const isEarned = earnedBadgeIds.includes(badge.id);
-                    return (
-                      <div key={badge.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">{badge.icon}</div>
-                          <div>
-                            <div className="font-medium">{badge.name}</div>
-                            <div className="text-xs text-muted-foreground">{badge.description}</div>
+                            <Badge variant={
+                              badge.badges?.rarity === 'legendary' ? 'default' : 'secondary'
+                            }>
+                              {badge.badges?.rarity}
+                            </Badge>
                           </div>
-                        </div>
-                        {isEarned ? (
-                          <Badge variant="default" className="bg-green-100 text-green-800">
-                            Earned
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">+{badge.xp_reward} XP</Badge>
-                        )}
+                        ))}
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-red-500" />
-                    Next Milestones
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {allBadges
-                    .filter(badge => !earnedBadgeIds.includes(badge.id))
-                    .sort((a, b) => b.xp_reward - a.xp_reward)
-                    .slice(0, 3)
-                    .map((badge) => (
-                      <div key={badge.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">{badge.icon}</div>
-                          <div>
-                            <div className="font-medium">{badge.name}</div>
-                            <Progress value={0} className="w-20 h-2 mt-1" />
-                          </div>
-                        </div>
-                        <Badge variant="secondary">+{badge.xp_reward} XP</Badge>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Crown className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-muted-foreground">No rare badges yet</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Keep leveling up to unlock epic and legendary badges!
+                        </p>
                       </div>
-                    ))}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Leaderboard Tab */}
-          <TabsContent value="leaderboard">
-            <Leaderboard 
-              data={leaderboard}
-              currentUserId={user.id}
-            />
-          </TabsContent>
-
-          {/* Challenges Tab */}
-          <TabsContent value="challenges">
-            <WeeklyChallenges 
-              challenges={weeklyChallenges}
-              userStats={userStats}
-            />
-            
-            {/* Streak Tracker */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-orange-500" />
-                  Login Streak
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <StreakTracker 
-                  currentStreak={streakDays}
-                  bestStreak={userStats?.best_streak || streakDays}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Referrals Tab */}
-          <TabsContent value="referrals">
-            <ReferralDashboard />
-          </TabsContent>
-        </Tabs>
-
-        {/* Call to Action */}
-        <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-bold mb-2">Ready to Level Up?</h3>
-                <p className="text-blue-100">
-                  Complete your first transaction today and start earning rewards!
-                </p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-              <Button size="lg" variant="secondary" className="whitespace-nowrap">
-                <Rocket className="h-4 w-4 mr-2" />
-                Start Earning
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </TabsContent>
+
+            {/* Leaderboard Tab */}
+            <TabsContent value="leaderboard">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5 text-yellow-500" />
+                    Community Leaderboard
+                  </CardTitle>
+                  <CardDescription>
+                    Top lenders in your community this month
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Leaderboard 
+                    data={leaderboardData}
+                    currentUserId={user.id}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Challenges Tab */}
+            <TabsContent value="challenges" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Weekly Challenges</CardTitle>
+                      <CardDescription>
+                        Complete challenges to earn bonus XP and rewards
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <WeeklyChallenges 
+                        challenges={weeklyChallenges}
+                        userStats={userStats}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-green-500" />
+                        Daily Goals
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Login today</span>
+                        </div>
+                        <Badge variant="outline">+10 XP</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm">Respond to messages</span>
+                        </div>
+                        <Badge variant="outline">+25 XP</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Eye className="h-4 w-4 text-purple-600" />
+                          <span className="text-sm">Browse listings</span>
+                        </div>
+                        <Badge variant="outline">+15 XP</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Gift className="h-5 w-5 text-pink-500" />
+                        Upcoming Rewards
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Level 10</span>
+                        <Badge variant="outline">Profile Frame</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>25 Badges</span>
+                        <Badge variant="outline">Exclusive Title</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>100 Transactions</span>
+                        <Badge variant="outline">Verified Badge</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Referrals Tab */}
+            <TabsContent value="referrals">
+              <ReferralDashboard />
+            </TabsContent>
+          </Tabs>
+
+          {/* Call to Action */}
+          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+            <CardContent className="p-8">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                <div className="text-center lg:text-left">
+                  <h3 className="text-2xl font-bold mb-2">Ready to Dominate the Leaderboards?</h3>
+                  <p className="text-blue-100 text-lg">
+                    Start lending, earn XP, and unlock exclusive rewards today!
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button size="lg" variant="secondary" className="whitespace-nowrap">
+                    <Rocket className="h-4 w-4 mr-2" />
+                    Browse Listings
+                  </Button>
+                  <Button size="lg" variant="outline" className="bg-white text-blue-600 hover:bg-gray-100">
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share Profile
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );
