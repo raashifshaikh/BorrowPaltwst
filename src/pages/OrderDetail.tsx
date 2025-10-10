@@ -1,4 +1,60 @@
-import { useState, useEffect } from 'react';
+  // State for escrow/deposit release
+  const [isReleasingEscrow, setIsReleasingEscrow] = useState(false);
+
+  // Escrow release mutation
+  const releaseEscrowMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ escrow_released: true, escrow_released_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      toast({ title: 'Escrow released', description: 'Deposit has been returned to the borrower.' });
+      setIsReleasingEscrow(false);
+    },
+    onError: (error) => {
+      toast({ title: 'Release failed', description: error.message, variant: 'destructive' });
+      setIsReleasingEscrow(false);
+    }
+  });
+import { useState, useEffect, useRef } from 'react';
+// Helper for uploading images to Supabase Storage
+async function uploadProofImages(files, userId, orderId, stage, toast) {
+  const uploadedUrls = [];
+  for (const file of Array.from(files)) {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Max 5MB per image', variant: 'destructive' });
+      continue;
+    }
+    const ext = file.name.split('.').pop();
+    const fileName = `${userId}/order_${orderId}_${stage}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('order-proof').upload(fileName, file);
+    if (error) {
+      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      continue;
+    }
+    const { data } = supabase.storage.from('order-proof').getPublicUrl(fileName);
+    uploadedUrls.push(data.publicUrl);
+  }
+  return uploadedUrls;
+}
+  // State for proof images
+  const [deliveryProof, setDeliveryProof] = useState([]);
+  const [returnProof, setReturnProof] = useState([]);
+  const deliveryInputRef = useRef(null);
+  const returnInputRef = useRef(null);
+  // Upload proof images handler
+  const handleProofUpload = async (e, stage) => {
+    const files = e.target.files;
+    if (!files || !user) return;
+    const urls = await uploadProofImages(files, user.id, id, stage, toast);
+    if (stage === 'delivery') setDeliveryProof((prev) => [...prev, ...urls]);
+    if (stage === 'return') setReturnProof((prev) => [...prev, ...urls]);
+    // Optionally, save URLs to order in DB here
+  };
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -831,14 +887,49 @@ const OrderDetail = () => {
           </Card>
         )}
 
-        {/* Order Timeline */}
+  {/* Order Timeline & Proof of Condition */}
+        {/* Escrow/Deposit Release Confirmation */}
+        {orderStage === 5 && order.deposit && (
+          <Card className="border-green-500 bg-green-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-green-600" />
+                Deposit/Escrow Release
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Deposit Amount:</span>
+                <span className="text-lg font-bold text-primary">₹{order.deposit}</span>
+              </div>
+              {order.escrow_released ? (
+                <div className="text-green-700 font-medium">Deposit has been released to the borrower.</div>
+              ) : isSeller ? (
+                <Button
+                  className="w-full min-h-[44px]"
+                  size="lg"
+                  onClick={() => {
+                    setIsReleasingEscrow(true);
+                    releaseEscrowMutation.mutate();
+                  }}
+                  disabled={isReleasingEscrow || releaseEscrowMutation.isPending}
+                >
+                  {isReleasingEscrow ? 'Releasing...' : 'Release Deposit to Borrower'}
+                </Button>
+              ) : (
+                <div className="text-yellow-700 font-medium">Waiting for lender to release deposit...</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
         {isPaid && (
           <Card>
             <CardHeader>
-              <CardTitle>Order Progress</CardTitle>
+              <CardTitle>Order Progress & Proof of Condition</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Timeline as before */}
                 <div className="flex items-center gap-3">
                   {orderStage >= 1 ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
                   <div className="flex-1">
@@ -846,7 +937,6 @@ const OrderDetail = () => {
                     <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(order.created_at))} ago</p>
                   </div>
                 </div>
-                
                 <div className="flex items-center gap-3">
                   {orderStage >= 2 ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
                   <div className="flex-1">
@@ -854,7 +944,6 @@ const OrderDetail = () => {
                     {order.status === 'accepted' && <p className="text-xs text-muted-foreground">Seller accepted your order</p>}
                   </div>
                 </div>
-                
                 <div className="flex items-center gap-3">
                   {orderStage >= 3 ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
                   <div className="flex-1">
@@ -862,20 +951,56 @@ const OrderDetail = () => {
                     {isPaid && <p className="text-xs text-muted-foreground">Payment processed successfully</p>}
                   </div>
                 </div>
-                
+                {/* Delivery proof upload */}
                 <div className="flex items-center gap-3">
                   {orderStage >= 4 ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
                   <div className="flex-1">
                     <p className="font-medium">Item Delivered</p>
                     {order.delivery_scanned_at && <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(order.delivery_scanned_at))} ago</p>}
+                    {/* Upload proof at delivery */}
+                    {orderStage === 4 && (
+                      <div className="mt-2">
+                        <Label>Upload photos for proof of item condition (delivery):</Label>
+                        <Input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          ref={deliveryInputRef}
+                          onChange={e => handleProofUpload(e, 'delivery')}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          {deliveryProof.map((url, idx) => (
+                            <img key={idx} src={url} alt="Proof" className="h-16 w-16 object-cover rounded" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                
+                {/* Return proof upload */}
                 <div className="flex items-center gap-3">
                   {orderStage >= 5 ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
                   <div className="flex-1">
                     <p className="font-medium">Item Returned</p>
                     {order.return_scanned_at && <p className="text-xs text-muted-foreground">Completed {formatDistanceToNow(new Date(order.return_scanned_at))} ago</p>}
+                    {/* Upload proof at return */}
+                    {orderStage === 5 && (
+                      <div className="mt-2">
+                        <Label>Upload photos for proof of item condition (return):</Label>
+                        <Input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          ref={returnInputRef}
+                          onChange={e => handleProofUpload(e, 'return')}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          {returnProof.map((url, idx) => (
+                            <img key={idx} src={url} alt="Proof" className="h-16 w-16 object-cover rounded" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

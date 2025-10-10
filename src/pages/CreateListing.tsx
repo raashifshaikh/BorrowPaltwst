@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,68 @@ const CreateListing = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [deposit, setDeposit] = useState('');
+  const [autoDeposit, setAutoDeposit] = useState('');
+  const [type, setType] = useState<'item' | 'service'>('item');
+  // Service-specific state
+  const [portfolioImages, setPortfolioImages] = useState<string[]>([]);
+  const [verificationDocs, setVerificationDocs] = useState<string[]>([]);
+  const [schedule, setSchedule] = useState('');
+  const [userBadges, setUserBadges] = useState<any[]>([]);
+  // Fetch user badges if service selected
+  useEffect(() => {
+    if (type === 'service' && user?.id) {
+      supabase.from('user_badges').select('*, badges(*)').eq('user_id', user.id).then(({ data }) => {
+        setUserBadges(data || []);
+      });
+    }
+  }, [type, user]);
+  // Service: handle portfolio image upload
+  const handlePortfolioUpload = async (files: FileList) => {
+    if (!user?.id) return;
+    const newImages: string[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'File too large', description: 'Max 5MB', variant: 'destructive' });
+        continue;
+      }
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/portfolio/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage.from('portfolio-images').upload(fileName, file);
+      if (error) { toast({ title: 'Upload failed', description: error.message, variant: 'destructive' }); continue; }
+      const { data } = supabase.storage.from('portfolio-images').getPublicUrl(fileName);
+      newImages.push(data.publicUrl);
+    }
+    setPortfolioImages(prev => [...prev, ...newImages]);
+  };
+
+  // Service: handle verification doc upload
+  const handleDocUpload = async (files: FileList) => {
+    if (!user?.id) return;
+    const newDocs: string[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: 'File too large', description: 'Max 10MB', variant: 'destructive' });
+        continue;
+      }
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/docs/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage.from('verification-docs').upload(fileName, file);
+      if (error) { toast({ title: 'Upload failed', description: error.message, variant: 'destructive' }); continue; }
+      const { data } = supabase.storage.from('verification-docs').getPublicUrl(fileName);
+      newDocs.push(data.publicUrl);
+    }
+    setVerificationDocs(prev => [...prev, ...newDocs]);
+  };
+  // Auto-calculate deposit as 30% of price
+  useEffect(() => {
+    const priceNum = parseFloat((document.getElementById('price') as HTMLInputElement)?.value || '');
+    if (!isNaN(priceNum) && priceNum > 0) {
+      const suggested = (priceNum * 0.3).toFixed(2);
+      setAutoDeposit(suggested);
+      if (!deposit) setDeposit(suggested);
+    }
+  }, [deposit]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -81,6 +143,7 @@ const CreateListing = () => {
     setLoading(true);
     const formData = new FormData(e.currentTarget);
 
+    const listingType = formData.get('type') as 'item' | 'service';
     const listing = {
       title: formData.get('title') as string,
       description: formData.get('description') as string,
@@ -88,11 +151,35 @@ const CreateListing = () => {
       price_type: formData.get('price_type') as 'fixed' | 'hourly' | 'per_day' | 'negotiable',
       category_id: formData.get('category_id') as string,
       condition: formData.get('condition') as 'new' | 'like_new' | 'good' | 'fair' | 'poor',
-      type: formData.get('type') as 'item' | 'service',
+      type: listingType,
       seller_id: user.id,
       images: uploadedImages,
-      delivery_options: [formData.get('delivery_option') as 'pickup' | 'delivery' | 'both']
+      delivery_options: [formData.get('delivery_option') as 'pickup' | 'delivery' | 'both'],
+      visibility: formData.get('visibility') as 'public' | 'private' | 'neighborhood',
+      deposit: parseFloat(formData.get('deposit') as string)
     };
+
+    // If service, also insert into services table
+    if (listingType === 'service') {
+      const { data: service, error: serviceError } = await supabase.from('services').insert([
+        {
+          title: listing.title,
+          description: listing.description,
+          price: listing.price,
+          category: categories?.find((c) => c.id === listing.category_id)?.name || '',
+          provider_id: user.id,
+          images: portfolioImages,
+          // schedule and verification docs as JSON fields
+          schedule,
+          verification_docs: verificationDocs
+        }
+      ]).select().single();
+      if (serviceError) {
+        toast({ title: 'Error creating service', description: serviceError.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+    }
 
     const { error } = await supabase.from('listings').insert([listing]);
 
@@ -121,7 +208,27 @@ const CreateListing = () => {
           <p className="text-muted-foreground">Share an item or offer a service</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+  <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Visibility</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="visibility">Who can see this listing?</Label>
+                <Select name="visibility" defaultValue="public" required>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">Public (anyone can see)</SelectItem>
+                    <SelectItem value="neighborhood">Neighborhood Only</SelectItem>
+                    <SelectItem value="private">Private (only you)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
@@ -145,7 +252,7 @@ const CreateListing = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="type">Type</Label>
-                  <Select name="type" required>
+                  <Select name="type" value={type} onValueChange={v => setType(v as 'item' | 'service')} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -154,6 +261,99 @@ const CreateListing = () => {
                       <SelectItem value="service">Service</SelectItem>
                     </SelectContent>
                   </Select>
+          {/* Service-specific fields */}
+          {type === 'service' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Portfolio Images</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <Label htmlFor="portfolio-images" className="cursor-pointer">
+                      <span className="text-primary font-medium">Click to upload portfolio images</span>
+                    </Label>
+                    <Input
+                      id="portfolio-images"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => e.target.files && handlePortfolioUpload(e.target.files)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">PNG, JPG up to 5MB each</p>
+                  </div>
+                  {portfolioImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-4">
+                      {portfolioImages.map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Verification Documents</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <Label htmlFor="verification-docs" className="cursor-pointer">
+                      <span className="text-primary font-medium">Click to upload verification docs</span>
+                    </Label>
+                    <Input
+                      id="verification-docs"
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={e => e.target.files && handleDocUpload(e.target.files)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">PDF, PNG, JPG up to 10MB each</p>
+                  </div>
+                  {verificationDocs.length > 0 && (
+                    <ul className="list-disc ml-6">
+                      {verificationDocs.map((doc, idx) => (
+                        <li key={idx}><a href={doc} target="_blank" rel="noopener noreferrer" className="text-primary underline">Document {idx + 1}</a></li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Badges</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {userBadges.length === 0 ? (
+                    <span className="text-muted-foreground">No badges earned yet</span>
+                  ) : (
+                    userBadges.map((b, idx) => (
+                      <Badge key={idx} variant="secondary">{b.badges?.name}</Badge>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Service Schedule</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label htmlFor="schedule">Availability / Schedule</Label>
+                  <Textarea
+                    id="schedule"
+                    placeholder="e.g. Weekdays 9am-5pm, Sat 10am-2pm, Sun off"
+                    value={schedule}
+                    onChange={e => setSchedule(e.target.value)}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          )}
                 </div>
 
                 <div className="space-y-2">
@@ -206,6 +406,14 @@ const CreateListing = () => {
                     step="0.01" 
                     placeholder="0.00" 
                     required 
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (!isNaN(Number(val)) && Number(val) > 0) {
+                        const suggested = (Number(val) * 0.3).toFixed(2);
+                        setAutoDeposit(suggested);
+                        if (!deposit) setDeposit(suggested);
+                      }
+                    }}
                   />
                 </div>
 
@@ -223,6 +431,23 @@ const CreateListing = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="deposit">Suggested Deposit</Label>
+                <Input
+                  id="deposit"
+                  name="deposit"
+                  type="number"
+                  step="0.01"
+                  placeholder={autoDeposit || '0.00'}
+                  value={deposit}
+                  onChange={e => setDeposit(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Suggested: {autoDeposit ? `₹${autoDeposit}` : 'Enter price first'} (30% of price, can override)
+                </p>
               </div>
 
               <div className="space-y-2">

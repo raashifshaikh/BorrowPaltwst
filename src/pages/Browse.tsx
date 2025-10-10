@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,9 @@ const Browse = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('created_at');
+  const [availability, setAvailability] = useState('all');
+  const [depositRange, setDepositRange] = useState('all');
+  const [paymentType, setPaymentType] = useState('all');
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -24,7 +29,12 @@ const Browse = () => {
   });
 
   const { data: listings, isLoading } = useQuery({
-    queryKey: ['listings', searchTerm, selectedCategory, sortBy],
+  // Helper to get average rating (mocked for now, replace with real data)
+  const getLenderReputation = (listing) => {
+    // Replace with actual logic to fetch lender's reputation/ratings
+    return listing.seller_reputation || 4.5;
+  };
+    queryKey: ['listings', searchTerm, selectedCategory, sortBy, availability, depositRange, paymentType],
     queryFn: async () => {
       let query = supabase
         .from('listings')
@@ -40,6 +50,17 @@ const Browse = () => {
 
       if (selectedCategory !== 'all') {
         query = query.eq('category_id', selectedCategory);
+      }
+      if (availability !== 'all') {
+        query = query.eq('availability', availability);
+      }
+      if (depositRange !== 'all') {
+        if (depositRange === 'low') query = query.lte('deposit', 100);
+        if (depositRange === 'medium') query = query.gte('deposit', 100).lte('deposit', 500);
+        if (depositRange === 'high') query = query.gte('deposit', 500);
+      }
+      if (paymentType !== 'all') {
+        query = query.eq('payment_type', paymentType);
       }
 
       query = query.order(sortBy, { ascending: false });
@@ -94,7 +115,67 @@ const Browse = () => {
               <SelectItem value="views_count">Most Popular</SelectItem>
             </SelectContent>
           </Select>
+          {/* Availability Filter */}
+          <Select value={availability} onValueChange={setAvailability}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Availability" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Availability</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="unavailable">Unavailable</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Deposit Filter */}
+          <Select value={depositRange} onValueChange={setDepositRange}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Deposit" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Deposits</SelectItem>
+              <SelectItem value="low">Low (&lt; ₹100)</SelectItem>
+              <SelectItem value="medium">Medium (₹100-₹500)</SelectItem>
+              <SelectItem value="high">High (&gt; ₹500)</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Payment Type Filter */}
+          <Select value={paymentType} onValueChange={setPaymentType}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Payment Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Payment Types</SelectItem>
+              <SelectItem value="cod">Cash on Delivery</SelectItem>
+              <SelectItem value="online">Online Payment</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+
+        {/* Map View */}
+        {listings && listings.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold mb-2">Map View</h2>
+            <div className="w-full h-80 rounded-lg overflow-hidden">
+              <MapContainer center={[20.5937, 78.9629]} zoom={4} style={{ height: '100%', width: '100%' }}>
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors"
+                />
+                {listings.filter(l => l.location && l.location.lat && l.location.lng).map((listing) => (
+                  <Marker key={listing.id} position={[listing.location.lat, listing.location.lng]}>
+                    <Popup>
+                      <strong>{listing.title}</strong><br />
+                      {listing.categories?.name}<br />
+                      ₹{listing.price} / {listing.price_type}
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+        )}
 
         {/* Listings Grid */}
         {isLoading ? (
@@ -140,11 +221,16 @@ const Browse = () => {
                 
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                      {listing.title}
-                    </h3>
+                    <div>
+                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                        {listing.title}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary">Reputation: {getLenderReputation(listing)}★</Badge>
+                      </div>
+                    </div>
                     <Badge variant="outline">
-                      ${listing.price}/{listing.price_type}
+                      ₹{listing.price}/{listing.price_type}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
