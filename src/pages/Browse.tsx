@@ -28,12 +28,12 @@ const Browse = () => {
     }
   });
 
-  const { data: listings, isLoading } = useQuery({
   // Helper to get average rating (mocked for now, replace with real data)
   const getLenderReputation = (listing) => {
     // Replace with actual logic to fetch lender's reputation/ratings
     return listing.seller_reputation || 4.5;
   };
+  const { data: listings, isLoading } = useQuery({
     queryKey: ['listings', searchTerm, selectedCategory, sortBy, availability, depositRange, paymentType],
     queryFn: async () => {
       let query = supabase
